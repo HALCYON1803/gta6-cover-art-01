@@ -121,7 +121,16 @@ button.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 209, 
 }
 .slot.filled { border-style: solid; border-color: var(--accent); }
 .slot strong { font-size: 13px; }
-.slot .upload { color: var(--ink); }
+.slot .upload {
+  display: inline-block;
+  padding: 7px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--ink);
+  text-align: center;
+  cursor: pointer;
+  font-weight: 600;
+}
 .slot-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .slot-actions button { font-size: 12px; padding: 5px 9px; }
 

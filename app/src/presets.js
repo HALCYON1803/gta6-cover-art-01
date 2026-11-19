@@ -16,7 +16,7 @@ export const LAYOUTS = {
         { x: 0.64, y: 0.51, w: 0.34, h: 0.47, rot: 0 },
       ];
     },
-    titleZone: () => ({ x: 0.04, y: 0.68, w: 0.92, align: 'left', maxH: 0.28 }),
+    titleZone: () => ({ x: 0.04, y: 0.64, w: 0.92, align: 'left', maxH: 0.32 }),
     panelsCount: 3,
   },
   grid4: {
@@ -31,7 +31,7 @@ export const LAYOUTS = {
         { x: 0.505, y: 0.435, w: 0.475, h: 0.40, rot: 0 },
       ];
     },
-    titleZone: () => ({ x: 0.04, y: 0.845, w: 0.92, align: 'center', maxH: 0.14 }),
+    titleZone: () => ({ x: 0.04, y: 0.815, w: 0.92, align: 'center', maxH: 0.175 }),
     panelsCount: 4,
   },
   strip: {

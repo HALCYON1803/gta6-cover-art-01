@@ -42,7 +42,10 @@ export function drawPhotoInto(ctx, img, x, y, w, h, zoom, ox, oy, filter) {
   const pw = img.naturalWidth * scale;
   const ph = img.naturalHeight * scale;
   const dx = x + (w - pw) / 2 + ox * w;
-  const dy = y + (h - ph) / 2 + oy * h;
+  // Cover-fit crops the photo's long side: bias a tall photo's crop toward
+  // its top third, so a person's head survives a wide, short panel.
+  const topBias = ph > h ? (ph - h) * 0.30 : 0;
+  const dy = y + (h - ph) / 2 + oy * h + topBias;
   ctx.save();
   ctx.filter = filter || 'none';
   ctx.drawImage(img, dx, dy, pw, ph);
@@ -50,34 +53,41 @@ export function drawPhotoInto(ctx, img, x, y, w, h, zoom, ox, oy, filter) {
   return true;
 }
 
-/** One palm silhouette: a leaning trunk and seven arcing fronds. */
+/** One palm silhouette: a leaning trunk and six filled drooping fronds. */
 export function drawPalm(ctx, x, y, s, lean, colour) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(lean);
-  ctx.strokeStyle = colour;
   ctx.fillStyle = colour;
-  ctx.lineWidth = Math.max(2, s * 0.045);
+  ctx.strokeStyle = colour;
+  // Tapered trunk: a thick curve from the base up to the crown.
+  ctx.lineWidth = Math.max(3, s * 0.055);
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.quadraticCurveTo(s * 0.08, -s * 0.55, s * 0.02, -s * 0.95);
+  ctx.quadraticCurveTo(s * 0.10, -s * 0.50, s * 0.03, -s * 0.92);
   ctx.stroke();
-  const topX = s * 0.02;
-  const topY = -s * 0.95;
-  for (let i = 0; i < 7; i++) {
-    const a = (-160 + i * 38) * (Math.PI / 180);
-    const len = s * (0.42 + (i % 2) * 0.08);
+  const topX = s * 0.03;
+  const topY = -s * 0.92;
+  // Each frond is a filled leaf blade: out along an arc, drooping at the tip.
+  for (let i = 0; i < 6; i++) {
+    const a = (-165 + i * 30) * (Math.PI / 180);
+    const len = s * (0.46 + (i % 2) * 0.07);
+    const tipX = topX + Math.cos(a) * len;
+    const tipY = topY + Math.sin(a) * len + s * 0.30;
+    const midX = topX + Math.cos(a) * len * 0.55;
+    const midY = topY + Math.sin(a) * len * 0.55 - s * 0.10;
+    const px = -Math.sin(a);
+    const py = Math.cos(a);
     ctx.beginPath();
     ctx.moveTo(topX, topY);
-    ctx.quadraticCurveTo(
-      topX + Math.cos(a) * len * 0.55, topY + Math.sin(a) * len * 0.55 - s * 0.12,
-      topX + Math.cos(a) * len, topY + Math.sin(a) * len + s * 0.22,
-    );
-    ctx.stroke();
+    ctx.quadraticCurveTo(midX + px * s * 0.07, midY + py * s * 0.07, tipX, tipY);
+    ctx.quadraticCurveTo(midX - px * s * 0.02, midY - py * s * 0.02, topX, topY);
+    ctx.closePath();
+    ctx.fill();
   }
   ctx.beginPath();
-  ctx.arc(topX, topY, s * 0.045, 0, Math.PI * 2);
+  ctx.arc(topX, topY, s * 0.05, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -102,7 +112,8 @@ export function drawStarburst(ctx, cx, cy, r, text, fill, ink) {
   ctx.strokeStyle = ink;
   ctx.stroke();
   ctx.fillStyle = ink;
-  ctx.font = `bold ${r * 0.34}px Anton, 'Arial Black', sans-serif`;
+  const textSize = Math.min(r * 0.34, (r * 1.55) / Math.max(1, text.length));
+  ctx.font = `bold ${textSize}px Anton, 'Arial Black', sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 0, r * 0.03);
@@ -311,7 +322,7 @@ export function drawCover(canvas, state, photos) {
   ctx.restore();
 
   // Neon script subtitle under the title, with a glow.
-  const subY = zy + lineH * lines.length + fontPx * 0.42;
+  const subY = zy + lineH * lines.length + fontPx * 0.30;
   if (state.subtitle) {
     const subPx = Math.max(18, fontPx * 0.42);
     ctx.save();
@@ -337,18 +348,18 @@ export function drawCover(canvas, state, photos) {
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
     ctx.shadowColor = 'rgba(0,0,0,0.6)';
     ctx.shadowBlur = Math.max(2, 4 * u);
-    ctx.fillText(state.tagline.toUpperCase(), anchorX, subY + fontPx * 0.42);
+    ctx.fillText(state.tagline.toUpperCase(), anchorX, subY + fontPx * 0.34);
     ctx.restore();
   }
 
-  // Badge starburst top-right and heat stars bottom-left of the cover.
+  // Badge starburst top-right and heat stars top-left of the cover.
   if (state.badge) {
     const br = Math.max(26, Math.min(W, H) * 0.052);
-    drawStarburst(ctx, W - br * 1.25, br * 1.25, br, state.badge.toUpperCase().slice(0, 8), '#ffe600', grade.ink);
+    drawStarburst(ctx, W - br * 1.25, br * 1.25, br, state.badge.toUpperCase().slice(0, 10), '#ffe600', grade.ink);
   }
   if (state.heat > 0) {
     const starSize = Math.max(14, Math.min(W, H) * 0.024);
-    drawHeatStars(ctx, W * 0.035, H - starSize * 1.6, starSize, state.heat, '#ffe600', 'rgba(255,255,255,0.25)');
+    drawHeatStars(ctx, W * 0.035, H * 0.03, starSize, state.heat, '#ffe600', 'rgba(255,255,255,0.25)');
   }
 
   // --- Grain and vignette finish the poster look. ---
