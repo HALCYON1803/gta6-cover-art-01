@@ -3,8 +3,12 @@
 // presets, per-panel crop and position, title lettering, undo/redo and
 // exact-size PNG export. Photos never leave the machine: uploads are read
 // with object URLs and samples are files shipped under app/.
+//
+// v2: four shipped samples instead of two, every look deals a different
+// photo to every panel, and a "Deal 4 different photos" button re-deals
+// the panels in one tap.
 import { drawCover } from './cover.js';
-import { LAYOUTS, GRADES, PRESETS, EXPORT_SIZES, defaultState } from './presets.js';
+import { LAYOUTS, GRADES, PRESETS, EXPORT_SIZES, PHOTO_COUNT, dealPhotos, defaultState } from './presets.js';
 import { runShot } from './shots.js';
 
 const $ = (id) => document.getElementById(id);
@@ -12,11 +16,13 @@ const preview = $('preview');
 const statusEl = $('status');
 const state = defaultState();
 
-/** The photo library: up to four images, by slot index. */
+/** The photo library: one image per slot, by index. */
 const photos = [null, null, null, null];
 const SAMPLES = [
   { id: 'boulevard', label: 'Boulevard', file: 'samples/boulevard.jpg' },
   { id: 'pier', label: 'Pier', file: 'samples/pier.jpg' },
+  { id: 'neon', label: 'Neon', file: 'samples/neon.jpg' },
+  { id: 'marina', label: 'Marina', file: 'samples/marina.jpg' },
 ];
 
 let undoStack = [];
@@ -128,7 +134,29 @@ export async function loadSample(sampleId) {
   return img;
 }
 
-/** Applies a one-click look (layout, grade, words, effects). */
+/** Loads every shipped sample, one per library slot, in order. */
+export async function loadAllSamples() {
+  for (const sample of SAMPLES) {
+    const img = await loadImage(sample.file);
+    photos[SAMPLES.indexOf(sample)] = img;
+  }
+  document.querySelectorAll('.slot').forEach((el, i) => {
+    el.classList.toggle('filled', Boolean(photos[i]));
+  });
+}
+
+/** Gives every panel a different photo, cycling the library from `start`. */
+export function dealDistinctPhotos(start = 0) {
+  pushHistory();
+  const layout = LAYOUTS[state.layout];
+  const dealt = dealPhotos(layout.panelsCount, start);
+  dealt.forEach((photo, i) => { state.panels[i].photo = photo; });
+  syncPanelControls();
+  redraw();
+  say(`Dealt ${dealt.length} different photos — no panel repeats a face.`);
+}
+
+/** Applies a one-click look (layout, grade, words, effects, photos). */
 export function applyPreset(presetId) {
   const preset = PRESETS.find((p) => p.id === presetId);
   if (!preset) return;
@@ -147,6 +175,10 @@ export function applyPreset(presetId) {
     rays: preset.rays,
     palms: preset.palms,
   });
+  const layout = LAYOUTS[preset.layout];
+  (preset.photos || dealPhotos(layout.panelsCount)).forEach((photo, i) => {
+    if (i < state.panels.length) state.panels[i].photo = photo;
+  });
   syncAllControls();
   redraw();
   say(`Look applied: ${preset.name}.`);
@@ -161,6 +193,9 @@ export function randomizeLook() {
   state.layout = layouts[Math.floor(Math.random() * layouts.length)];
   state.grade = grades[Math.floor(Math.random() * grades.length)];
   state.title = titles[Math.floor(Math.random() * titles.length)];
+  const layout = LAYOUTS[state.layout];
+  dealPhotos(layout.panelsCount, Math.floor(Math.random() * PHOTO_COUNT))
+    .forEach((photo, i) => { state.panels[i].photo = photo; });
   syncAllControls();
   redraw();
   say('Random look — keep rolling or undo to go back.');
@@ -238,17 +273,40 @@ function buildSizeRadios() {
 
 function buildPhotoSlots() {
   const box = $('slots');
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < PHOTO_COUNT; i++) {
     const div = document.createElement('div');
     div.className = 'slot';
     div.innerHTML = `
       <strong>Photo ${i + 1}</strong>
       <label class="upload">Upload <input type="file" accept="image/*" data-slot="${i}" hidden></label>
-      <span class="slot-actions">
-        <button type="button" data-sample="boulevard" data-slot="${i}">Boulevard</button>
-        <button type="button" data-sample="pier" data-slot="${i}">Pier</button>
-        <button type="button" data-fill="${i}">Use everywhere</button>
-      </span>`;
+      <span class="slot-actions"></span>`;
+    const actions = div.querySelector('.slot-actions');
+    SAMPLES.forEach((sample) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.sample = sample.id;
+      b.dataset.slot = String(i);
+      b.textContent = sample.label;
+      b.addEventListener('click', async () => {
+        photos[i] = await loadImage(sample.file);
+        div.classList.add('filled');
+        redraw();
+        say(`Photo ${i + 1} set to the ${sample.label} sample.`);
+      });
+      actions.appendChild(b);
+    });
+    const fill = document.createElement('button');
+    fill.type = 'button';
+    fill.dataset.fill = String(i);
+    fill.textContent = 'Use everywhere';
+    fill.addEventListener('click', () => {
+      if (!photos[i]) { say('Load a photo into this slot first.'); return; }
+      pushHistory();
+      state.panels.forEach((p) => { p.photo = i; });
+      redraw();
+      say(`Every panel now uses Photo ${i + 1}.`);
+    });
+    actions.appendChild(fill);
     div.querySelector('input[type=file]').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -256,20 +314,6 @@ function buildPhotoSlots() {
       div.classList.add('filled');
       redraw();
       say(`Photo ${i + 1} loaded from your machine — never uploaded anywhere.`);
-    });
-    div.querySelectorAll('[data-sample]').forEach((b) => b.addEventListener('click', async () => {
-      const sample = SAMPLES.find((s) => s.id === b.dataset.sample);
-      photos[i] = await loadImage(sample.file);
-      div.classList.add('filled');
-      redraw();
-      say(`Photo ${i + 1} set to the ${sample.label} sample.`);
-    }));
-    div.querySelector('[data-fill]').addEventListener('click', () => {
-      if (!photos[i]) { say('Load a photo into this slot first.'); return; }
-      pushHistory();
-      state.panels.forEach((p) => { p.photo = i; });
-      redraw();
-      say(`Every panel now uses Photo ${i + 1}.`);
     });
     box.appendChild(div);
   }
@@ -434,6 +478,9 @@ $('exportAll').addEventListener('click', exportAll);
 $('undo').addEventListener('click', undo);
 $('redo').addEventListener('click', redo);
 $('random').addEventListener('click', randomizeLook);
+$('dealPhotos').addEventListener('click', () => dealDistinctPhotos(
+  Math.floor(Math.random() * PHOTO_COUNT),
+));
 $('reset').addEventListener('click', () => {
   pushHistory();
   const fresh = defaultState();
@@ -461,17 +508,18 @@ if (shot) {
     setGrade: (id) => { state.grade = id; },
     setTitle: (t) => { state.title = t; $('title').value = t; },
     loadSample,
+    loadAllSamples,
     setExportSize: (id) => { state.size = id; },
     redraw,
     fontsReady: () => document.fonts.ready,
   }).catch((err) => { statusEl.textContent = `Shot failed: ${err.message}`; });
 } else {
-  // Load the two samples so the first paint already looks like a cover.
-  Promise.all([loadSample('boulevard'), loadSample('pier')])
+  // Load all four samples so the first paint already looks like a cover.
+  loadAllSamples()
     .then(() => { syncAllControls(); redraw(); })
     .catch(() => redraw());
   redraw();
 }
 
 // Handle for automated tests and screenshot tooling.
-window.__coverApp = { state, photos, exportPng, redraw, applyPreset, loadSample };
+window.__coverApp = { state, photos, exportPng, redraw, applyPreset, loadSample, loadAllSamples, dealDistinctPhotos };

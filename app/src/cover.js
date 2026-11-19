@@ -1,13 +1,17 @@
 // Neon Coast Cover Studio — the cover renderer.
-// Draws the whole poster onto any 2D canvas at any size: sky and sun, photo
-// panels with crop and grade, palm silhouettes, halftone, gradient title
-// lettering with a neon script subtitle, badge, heat stars, grain and
-// vignette. The same function paints the live preview and the exported PNG,
-// so what you see is exactly what you share.
+// Draws the whole poster onto any 2D canvas at any size: sky and sun,
+// halftone sky, photo panels with crop and grade, palm silhouettes,
+// gradient title lettering with a neon script subtitle, badge, heat
+// stars, grain and vignette. The same function paints the live preview
+// and the exported PNG, so what you see is exactly what you share.
+//
+// v2: the halftone is painted on the sky BEFORE the panels, so its dots
+// never read as noise on a face, and layouts whose title sits over the
+// art get a dark scrim behind the lettering to keep it readable.
 import { LAYOUTS, GRADES } from './presets.js';
 
 /** Tiny deterministic PRNG so grain looks the same on every export. */
-export function mulberry32(seed) {
+export function seededRandom(seed) {
   let a = seed >>> 0;
   return () => {
     a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -35,8 +39,26 @@ export function fitTitleLines(ctx, text, fontPx, maxWidth) {
   return lines.filter(Boolean);
 }
 
+/** Halftone dots fading out across a band of the sky. */
+export function paintHalftone(ctx, x, y, w, h, colour, maxR) {
+  const step = Math.max(10, maxR * 2.4);
+  ctx.save();
+  ctx.fillStyle = colour;
+  for (let yy = y; yy < y + h; yy += step) {
+    const fade = 1 - (yy - y) / h;
+    for (let xx = x; xx < x + w; xx += step) {
+      const r = Math.max(0.6, maxR * fade);
+      ctx.globalAlpha = 0.20 * fade + 0.04;
+      ctx.beginPath();
+      ctx.arc(xx + step / 2, yy + step / 2, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 /** Draws one photo into a rectangle, cover-fit, with zoom and pan offsets. */
-export function drawPhotoInto(ctx, img, x, y, w, h, zoom, ox, oy, filter) {
+export function paintPhoto(ctx, img, x, y, w, h, zoom, ox, oy, filter) {
   if (!img || !img.naturalWidth) return false;
   const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight) * zoom;
   const pw = img.naturalWidth * scale;
@@ -54,7 +76,7 @@ export function drawPhotoInto(ctx, img, x, y, w, h, zoom, ox, oy, filter) {
 }
 
 /** One palm silhouette: a leaning trunk and six filled drooping fronds. */
-export function drawPalm(ctx, x, y, s, lean, colour) {
+export function paintPalm(ctx, x, y, s, lean, colour) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(lean);
@@ -93,7 +115,7 @@ export function drawPalm(ctx, x, y, s, lean, colour) {
 }
 
 /** A jagged starburst badge with centred text. */
-export function drawStarburst(ctx, cx, cy, r, text, fill, ink) {
+export function paintStarburst(ctx, cx, cy, r, text, fill, ink) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.beginPath();
@@ -121,7 +143,7 @@ export function drawStarburst(ctx, cx, cy, r, text, fill, ink) {
 }
 
 /** Five heat stars, `filled` of them lit. */
-export function drawHeatStars(ctx, x, y, size, filled, lit, dim) {
+export function paintHeatStars(ctx, x, y, size, filled, lit, dim) {
   ctx.save();
   ctx.translate(x, y);
   for (let i = 0; i < 5; i++) {
@@ -144,24 +166,6 @@ export function drawHeatStars(ctx, x, y, size, filled, lit, dim) {
   ctx.restore();
 }
 
-/** Halftone dots fading out across a band of the sky. */
-export function drawHalftone(ctx, x, y, w, h, colour, maxR) {
-  const step = Math.max(10, maxR * 2.4);
-  ctx.save();
-  ctx.fillStyle = colour;
-  for (let yy = y; yy < y + h; yy += step) {
-    const fade = 1 - (yy - y) / h;
-    for (let xx = x; xx < x + w; xx += step) {
-      const r = Math.max(0.6, maxR * fade);
-      ctx.globalAlpha = 0.28 * fade + 0.05;
-      ctx.beginPath();
-      ctx.arc(xx + step / 2, yy + step / 2, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-
 /**
  * Draws the full cover.
  * @param {HTMLCanvasElement} canvas - target canvas (its own pixel size).
@@ -175,7 +179,7 @@ export function drawCover(canvas, state, photos) {
   const u = Math.min(W, H) / 1000; // unit: 1 at a 1000px square
   const grade = GRADES[state.grade] || GRADES.sunset;
   const layout = LAYOUTS[state.layout] || LAYOUTS.hero;
-  const rng = mulberry32(20261119 + state.title.length * 97 + state.layout.length);
+  const rng = seededRandom(20261119 + state.title.length * 97 + state.layout.length);
 
   // --- Sky: sunset gradient with a low sun and optional rays. ---
   const sky = ctx.createLinearGradient(0, 0, 0, H);
@@ -212,6 +216,13 @@ export function drawCover(canvas, state, photos) {
   ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
   ctx.fill();
 
+  // --- Halftone dots on the SKY, before the panels go on, so no dot
+  // ever lands on a face. Where a panel covers the sky it hides the
+  // dots; where sky shows through, the dots read as print texture.
+  if (state.halftone) {
+    paintHalftone(ctx, 0, H * 0.02, W, H * 0.12, '#ffffff', Math.max(3, 7 * u));
+  }
+
   // --- Photo panels, each with white comic border and ink shadow. ---
   const rects = layout.panels(W, H);
   const border = Math.max(3, 7 * u);
@@ -241,7 +252,7 @@ export function drawCover(canvas, state, photos) {
     ctx.clip();
     const inner = { x: border, y: border, w: pw - border * 2, h: ph - border * 2 };
     if (img) {
-      drawPhotoInto(ctx, img, inner.x, inner.y, inner.w, inner.h, slot.zoom, slot.ox, slot.oy, grade.photoFilter);
+      paintPhoto(ctx, img, inner.x, inner.y, inner.w, inner.h, slot.zoom, slot.ox, slot.oy, grade.photoFilter);
     } else {
       const empty = ctx.createLinearGradient(0, inner.y, 0, inner.y + inner.h);
       empty.addColorStop(0, '#3a2a55');
@@ -273,14 +284,9 @@ export function drawCover(canvas, state, photos) {
   if (state.palms) {
     const palmColour = 'rgba(8,2,16,0.88)';
     const base = H * 0.985;
-    drawPalm(ctx, W * 0.03, base, Math.min(W, H) * 0.20, -0.10, palmColour);
-    drawPalm(ctx, W * 0.97, base, Math.min(W, H) * 0.17, 0.12, palmColour);
-    drawPalm(ctx, W * 0.90, base, Math.min(W, H) * 0.11, 0.05, palmColour);
-  }
-
-  // --- Halftone dots in the sky, above the panels. ---
-  if (state.halftone) {
-    drawHalftone(ctx, 0, H * 0.02, W, H * 0.16, '#ffffff', Math.max(3, 7 * u));
+    paintPalm(ctx, W * 0.03, base, Math.min(W, H) * 0.20, -0.10, palmColour);
+    paintPalm(ctx, W * 0.97, base, Math.min(W, H) * 0.17, 0.12, palmColour);
+    paintPalm(ctx, W * 0.90, base, Math.min(W, H) * 0.11, 0.05, palmColour);
   }
 
   // --- Title block: gradient Anton lettering, ink stroke, neon subtitle. ---
@@ -293,6 +299,17 @@ export function drawCover(canvas, state, photos) {
   const anchorX = align === 'left' ? zx : align === 'right' ? zx + zw : zx + zw / 2;
   ctx.textAlign = align;
   ctx.textBaseline = 'alphabetic';
+
+  // Layouts whose title sits over the art get a dark scrim behind the
+  // lettering first, so the words stay readable on any photo.
+  if (layout.titleOverlay) {
+    const scrim = ctx.createLinearGradient(0, zy - zoneH * 0.25, 0, zy + zoneH * 1.15);
+    scrim.addColorStop(0, 'rgba(10,2,20,0)');
+    scrim.addColorStop(0.45, 'rgba(10,2,20,0.52)');
+    scrim.addColorStop(1, 'rgba(10,2,20,0.78)');
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, zy - zoneH * 0.25, W, zoneH * 1.4);
+  }
 
   const titleText = (state.title || 'NEON COAST').toUpperCase();
   let fontPx = Math.min(zoneH * 0.52, zw * 0.24) * (state.titleScale || 1);
@@ -321,7 +338,8 @@ export function drawCover(canvas, state, photos) {
   });
   ctx.restore();
 
-  // Neon script subtitle under the title, with a glow.
+  // Neon script subtitle under the title: white lettering with an
+  // accent-coloured glow, so it reads on any photo or scrim.
   const subY = zy + lineH * lines.length + fontPx * 0.30;
   if (state.subtitle) {
     const subPx = Math.max(18, fontPx * 0.42);
@@ -329,12 +347,10 @@ export function drawCover(canvas, state, photos) {
     ctx.font = `${subPx}px Pacifico, cursive`;
     ctx.textAlign = align;
     ctx.shadowColor = grade.accent;
-    ctx.shadowBlur = Math.max(8, 22 * u);
+    ctx.shadowBlur = Math.max(10, 26 * u);
     ctx.fillStyle = '#ffffff';
     ctx.fillText(state.subtitle, anchorX, subY);
     ctx.shadowBlur = 0;
-    ctx.fillStyle = grade.accent;
-    ctx.globalAlpha = 0.9;
     ctx.fillText(state.subtitle, anchorX, subY);
     ctx.restore();
   }
@@ -355,11 +371,11 @@ export function drawCover(canvas, state, photos) {
   // Badge starburst top-right and heat stars top-left of the cover.
   if (state.badge) {
     const br = Math.max(26, Math.min(W, H) * 0.052);
-    drawStarburst(ctx, W - br * 1.25, br * 1.25, br, state.badge.toUpperCase().slice(0, 10), '#ffe600', grade.ink);
+    paintStarburst(ctx, W - br * 1.25, br * 1.25, br, state.badge.toUpperCase().slice(0, 10), '#ffe600', grade.ink);
   }
   if (state.heat > 0) {
     const starSize = Math.max(14, Math.min(W, H) * 0.024);
-    drawHeatStars(ctx, W * 0.035, H * 0.03, starSize, state.heat, '#ffe600', 'rgba(255,255,255,0.25)');
+    paintHeatStars(ctx, W * 0.035, H * 0.03, starSize, state.heat, '#ffe600', 'rgba(255,255,255,0.25)');
   }
 
   // --- Grain and vignette finish the poster look. ---

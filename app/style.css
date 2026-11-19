@@ -133,6 +133,12 @@ button.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 209, 
 }
 .slot-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .slot-actions button { font-size: 12px; padding: 5px 9px; }
+.deal-btn {
+  width: 100%;
+  font-weight: 700;
+  border-color: var(--gold);
+  background: linear-gradient(135deg, rgba(255, 209, 102, 0.18), rgba(255, 46, 136, 0.18));
+}
 
 .layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .layout-btn {
