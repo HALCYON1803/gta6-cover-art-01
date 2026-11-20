@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Neon Coast Cover Studio — GTA 6-style cover maker</title>
-<meta name="description" content="Turn any photo and caption into GTA 6-style cover art, offline in your browser. Six layouts, six sunset grades, exact 1080x1080, 1080x1350 and 1920x1080 PNG export.">
+<meta name="description" content="Turn your own photos into GTA 6-style cover art, offline in your browser. Cast role tags, panel swap, callouts, billing block and seal, 7 layouts, 6 sunset grades, exact 1080x1080, 1080x1350 and 1920x1080 PNG export.">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -28,30 +28,64 @@
 <main class="app">
   <section class="controls" aria-label="Cover editor controls">
     <h2>1 · Photos</h2>
-    <p class="hint">Upload your own, drop a file anywhere, or use a sample. Click a panel in the preview, then pick which photo fills it.</p>
+    <p class="hint">Upload your own, drop a file on a panel in the preview, or use a sample. Click a panel in the preview, then pick which photo fills it.</p>
     <div id="slots"></div>
     <button id="dealPhotos" type="button" class="deal-btn">🃏 Deal 4 different photos</button>
 
-    <h2>2 · Layout</h2>
+    <h2>2 · Cast tags</h2>
+    <p class="hint">Put names on your cover — every tag carries a name and a role on its panel. Grab a tag on the preview and drag it somewhere else.</p>
+    <div id="castList"></div>
+    <div class="cast-add">
+      <input id="castName" type="text" maxlength="14" placeholder="Name — e.g. LUCIA">
+      <select id="castRole" aria-label="Role">
+        <option>THE GETAWAY DRIVER</option>
+        <option>THE MUSCLE</option>
+        <option>THE HACKER</option>
+        <option>THE FIXER</option>
+        <option>THE LOOKOUT</option>
+        <option>THE INSIDE WOMAN</option>
+      </select>
+      <button id="addCast" type="button">+ Add cast tag</button>
+    </div>
+
+    <h2>3 · Layout</h2>
     <div id="layouts" class="layout-grid"></div>
 
-    <h2>3 · Colour grade</h2>
+    <h2>4 · Colour grade</h2>
     <div id="grades" class="grade-grid"></div>
 
-    <h2>4 · One-click looks</h2>
+    <h2>5 · One-click looks</h2>
     <div id="presets" class="preset-grid"></div>
 
-    <h2>5 · Words</h2>
+    <h2>6 · Words</h2>
     <label>Title <input id="title" type="text" maxlength="30" value="NEON COAST"></label>
+    <label>Title style
+      <select id="titleStyle">
+        <option value="classic">Classic gradient</option>
+        <option value="chrome">Retro-chrome stripes</option>
+      </select>
+    </label>
     <label>Subtitle (neon script) <input id="subtitle" type="text" maxlength="30" value="Sunset Heist"></label>
     <label>Tagline <input id="tagline" type="text" maxlength="48" value="PALMS  •  NEON  •  GOLDEN HOUR"></label>
     <label>Badge <input id="badge" type="text" maxlength="10" value="EST. 2026"></label>
     <label>Heat stars <input id="heat" type="range" min="0" max="5" step="1" value="5"></label>
     <label>Title size <input id="titleScale" type="range" min="0.6" max="1.5" step="0.05" value="1"></label>
+    <label>Billing block <input id="billingText" type="text" maxlength="90" value="A LEONIDA PICTURE  •  STARRING LUCIA &amp; JASON  •  MUSIC BY NEON COAST"></label>
+    <div class="toggles">
+      <label class="toggle"><input id="billingToggle" type="checkbox" data-key="billing" checked> Billing block</label>
+      <label class="toggle"><input id="sealToggle" type="checkbox" data-key="seal" checked> Seal stamp</label>
+    </div>
 
-    <h2>6 · Selected panel</h2>
-    <p class="hint"><span id="panelLabel">Panel 1 of 3</span> — click a panel in the preview or drag it to pan the photo. Scroll over it to zoom.</p>
+    <h2>7 · Selected panel</h2>
+    <p class="hint"><span id="panelLabel">Panel 1 of 3</span> — click a panel in the preview or drag it to pan the photo. Scroll over it to zoom. Drag a cast tag or callout to move it.</p>
     <div id="panelDots" class="panel-dots"></div>
+    <label class="upload-panel">Upload a photo to this panel <input id="uploadPanel" type="file" accept="image/*" hidden></label>
+    <div class="swap-row">
+      <button id="swapMode" type="button">⇄ Swap panels</button>
+      <label>Swap with
+        <select id="swapWith"></select>
+      </label>
+    </div>
     <label>Photo in this panel
       <select id="panelPhoto">
         <option value="0">Photo 1</option>
@@ -64,7 +98,15 @@
     <label>Pan left–right <input id="panX" type="range" min="-0.6" max="0.6" step="0.01" value="0"></label>
     <label>Pan up–down <input id="panY" type="range" min="-0.6" max="0.6" step="0.01" value="0"></label>
 
-    <h2>7 · Effects</h2>
+    <h2>8 · Callouts</h2>
+    <p class="hint">Labels with a leader dot — point at anything on the cover. Drag a callout on the preview to move it.</p>
+    <div id="calloutList"></div>
+    <div class="cast-add">
+      <input id="calloutText" type="text" maxlength="40" placeholder="Callout — e.g. VICE CITY • 2026">
+      <button id="addCallout" type="button">+ Add callout</button>
+    </div>
+
+    <h2>9 · Effects</h2>
     <div class="toggles">
       <label class="toggle"><input type="checkbox" data-key="grain" checked> Film grain</label>
       <label class="toggle"><input type="checkbox" data-key="vignette" checked> Vignette</label>
@@ -74,7 +116,7 @@
       <label class="toggle"><input type="checkbox" data-key="frame" checked> Comic frame</label>
     </div>
 
-    <h2>8 · Export</h2>
+    <h2>10 · Export</h2>
     <div id="sizes" class="sizes"></div>
     <div class="export-row">
       <button id="export" type="button" class="primary">Export PNG</button>
@@ -86,7 +128,7 @@
 
   <section class="stage" aria-label="Live cover preview">
     <canvas id="preview" width="960" height="540" aria-label="Live cover preview"></canvas>
-    <p class="stage-hint">Live preview — click a panel to select it, drag to move the photo inside it.</p>
+    <p class="stage-hint">Live preview — click a panel to select it, drag to move the photo inside it, drag a cast tag or callout to move it.</p>
   </section>
 </main>
 <script type="module" src="./src/main.js"></script>

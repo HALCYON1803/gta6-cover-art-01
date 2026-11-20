@@ -8,6 +8,11 @@
 // v2: the halftone is painted on the sky BEFORE the panels, so its dots
 // never read as noise on a face, and layouts whose title sits over the
 // art get a dark scrim behind the lettering to keep it readable.
+//
+// v4: role tags pinned to panels, callouts with leader dots, a credits
+// strip and a seal stamp along the bottom, and a striped retro-chrome
+// title. Tag and callout boxes are measured by layout functions the
+// editor reuses for hit-testing, so a drag grabs exactly what is drawn.
 import { LAYOUTS, GRADES } from './presets.js';
 
 /** Tiny deterministic PRNG so grain looks the same on every export. */
@@ -56,6 +61,7 @@ export function paintHalftone(ctx, x, y, w, h, colour, maxR) {
   }
   ctx.restore();
 }
+
 
 /** Draws one photo into a rectangle, cover-fit, with zoom and pan offsets. */
 export function paintPhoto(ctx, img, x, y, w, h, zoom, ox, oy, filter) {
@@ -163,6 +169,273 @@ export function paintHeatStars(ctx, x, y, size, filled, lit, dim) {
     ctx.strokeStyle = 'rgba(0,0,0,0.55)';
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+// --- v4: role tags, callouts, credits strip, seal stamp --------------------
+
+/**
+ * On-canvas boxes for every cast tag, in canvas pixels. `ctx` only
+ * measures text, so the editor can run this on a scratch context and
+ * hit-test the very boxes the painter draws.
+ * Returns [{ tag, index, x, y, w, h, nameSize, roleSize, inset, stripe, accent }].
+ */
+export function castTagLayout(ctx, state, W, H) {
+  const layout = LAYOUTS[state.layout] || LAYOUTS.hero;
+  const rects = layout.panels(W, H);
+  const grade = GRADES[state.grade] || GRADES.sunset;
+  const found = [];
+  const tags = state.cast || [];
+  for (let index = 0; index < tags.length; index++) {
+    const tag = tags[index];
+    const r = rects[tag.panel];
+    if (!r) continue;
+    const px = r.x * W;
+    const py = r.y * H;
+    const pw = r.w * W;
+    const ph = r.h * H;
+    const nameSize = Math.max(13, Math.min(W, H) * 0.020);
+    const roleSize = Math.max(9, Math.min(W, H) * 0.0115);
+    const inset = nameSize * 0.45;
+    const stripe = nameSize * 0.30;
+    ctx.save();
+    ctx.font = `${nameSize}px Anton, 'Arial Black', sans-serif`;
+    const nameW = ctx.measureText((tag.name || 'CAST').toUpperCase()).width;
+    ctx.font = `bold ${roleSize}px 'Arial Narrow', Arial, sans-serif`;
+    const roleW = ctx.measureText((tag.role || '').toUpperCase()).width;
+    ctx.restore();
+    const w = stripe + inset * 2 + Math.max(nameW, roleW);
+    const h = inset * 2 + nameSize * 1.05 + roleSize * 1.15 + nameSize * 0.12;
+    // Anchor by panel fraction, then pull the pill back inside its panel.
+    let x = px + (tag.x ?? 0.06) * pw;
+    let y = py + (tag.y ?? 0.76) * ph;
+    if (x + w > px + pw - 4) x = px + pw - w - 4;
+    if (y + h > py + ph - 4) y = py + ph - h - 4;
+    if (x < px + 4) x = px + 4;
+    if (y < py + 4) y = py + 4;
+    found.push({ tag, index, x, y, w, h, nameSize, roleSize, inset, stripe, accent: grade.accent });
+  }
+  return found;
+}
+
+/** Paints one cast tag pill inside the box `castTagLayout` measured. */
+export function paintCastTag(ctx, geom) {
+  const { tag, x, y, w, h, nameSize, roleSize, inset, stripe, accent } = geom;
+  ctx.save();
+  // Dark pill, accent stripe down the left edge, name above role.
+  ctx.fillStyle = 'rgba(8,2,16,0.82)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, Math.max(3, h * 0.18));
+  ctx.fill();
+  ctx.fillStyle = accent;
+  ctx.fillRect(x, y, stripe, h);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `${nameSize}px Anton, 'Arial Black', sans-serif`;
+  ctx.fillText((tag.name || 'CAST').toUpperCase(), x + stripe + inset, y + inset + nameSize * 0.95);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = `bold ${roleSize}px 'Arial Narrow', Arial, sans-serif`;
+  ctx.fillText((tag.role || '').toUpperCase(), x + stripe + inset, y + inset + nameSize * 1.05 + roleSize * 1.05);
+  ctx.restore();
+}
+
+/**
+ * On-canvas boxes for every callout label, in canvas pixels.
+ * Returns [{ callout, index, dotX, dotY, x, y, w, h, labelSize, inset }].
+ */
+export function calloutLayout(ctx, state, W, H) {
+  const scale = Math.min(W, H) / 1000;
+  const found = [];
+  const notes = state.callouts || [];
+  for (let index = 0; index < notes.length; index++) {
+    const callout = notes[index];
+    const dotX = (callout.x ?? 0.5) * W;
+    const dotY = (callout.y ?? 0.05) * H;
+    const labelSize = Math.max(12, Math.min(W, H) * 0.016);
+    const inset = labelSize * 0.55;
+    ctx.save();
+    ctx.font = `bold ${labelSize}px 'Arial Narrow', Arial, sans-serif`;
+    const textW = ctx.measureText((callout.text || '').toUpperCase()).width;
+    ctx.restore();
+    const w = textW + inset * 2;
+    const h = labelSize * 1.9;
+    // The label floats above-right of its dot, clamped onto the canvas.
+    let x = dotX + 20 * scale;
+    let y = dotY - h - 10 * scale;
+    if (x + w > W - 8) x = W - w - 8;
+    if (y < 8) y = dotY + 12 * scale;
+    if (x < 8) x = 8;
+    found.push({ callout, index, dotX, dotY, x, y, w, h, labelSize, inset });
+  }
+  return found;
+}
+
+/** Paints one callout: leader dot, connecting line and label pill. */
+export function paintCallout(ctx, geom) {
+  const { callout, dotX, dotY, x, y, w, h, labelSize, inset } = geom;
+  ctx.save();
+  // Line from the dot to the label's lower edge.
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = Math.max(1.5, h * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(dotX, dotY);
+  ctx.lineTo(x + 6, y + h);
+  ctx.stroke();
+  // The dot itself, ringed in dark ink.
+  ctx.fillStyle = '#ffe600';
+  ctx.beginPath();
+  ctx.arc(dotX, dotY, Math.max(3, h * 0.14), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = Math.max(1.5, h * 0.05);
+  ctx.stroke();
+  // The label pill.
+  ctx.fillStyle = 'rgba(8,2,16,0.85)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, Math.max(3, h * 0.3));
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${labelSize}px 'Arial Narrow', Arial, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText((callout.text || '').toUpperCase(), x + inset, y + h / 2 + labelSize * 0.05);
+  ctx.restore();
+}
+
+/** The movie-credits strip along the bottom edge. */
+export function paintBilling(ctx, state, W, H) {
+  if (!state.billing || !state.billingText) return;
+  // It sits just above the comic frame's bottom stroke (painted
+  // later), so the frame never covers the credits' lower half.
+  const scale = Math.min(W, H) / 1000;
+  const framePx = state.frame ? Math.max(4, 10 * scale) : 0;
+  const bandH = Math.max(16, H * 0.026);
+  const typeSize = Math.max(9, bandH * 0.42);
+  const y = H - bandH - framePx;
+  ctx.save();
+  ctx.fillStyle = 'rgba(5,0,12,0.78)';
+  ctx.fillRect(0, y, W, bandH);
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.font = `bold ${typeSize}px 'Arial Narrow', Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if ('letterSpacing' in ctx) ctx.letterSpacing = `${Math.max(1, typeSize * 0.08)}px`;
+  ctx.fillText(state.billingText.toUpperCase(), W / 2, y + bandH / 2 + typeSize * 0.06);
+  ctx.restore();
+}
+
+/** The round "EST. 2026" seal stamp, bottom-right above the billing strip. */
+export function paintSeal(ctx, state, W, H) {
+  if (!state.seal) return;
+  const scale = Math.min(W, H) / 1000;
+  const framePx = state.frame ? Math.max(4, 10 * scale) : 0;
+  const bandH = state.billing && state.billingText ? Math.max(16, H * 0.026) : 0;
+  const radius = Math.max(22, Math.min(W, H) * 0.042);
+  const centerX = W - radius - Math.max(10, W * 0.012);
+  const centerY = H - bandH - framePx - radius - Math.max(8, H * 0.012);
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.rotate(-0.18);
+  ctx.fillStyle = 'rgba(8,2,16,0.72)';
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = Math.max(2, radius * 0.07);
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, radius * 0.035);
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * 0.72, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#ffd166';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `bold ${radius * 0.24}px 'Arial Narrow', Arial, sans-serif`;
+  ctx.fillText('★ EST. ★', 0, -radius * 0.22);
+  ctx.font = `${radius * 0.34}px Anton, 'Arial Black', sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('2026', 0, radius * 0.28);
+  ctx.restore();
+}
+
+/**
+ * The classic title: grade gradient fill, ink outline, soft shadow.
+ * Pulled out of drawCover so the chrome variant can sit beside it.
+ */
+function paintClassicTitle(ctx, grade, lines, fontPx, lineH, anchorX, zy, u) {
+  const wash = ctx.createLinearGradient(0, zy, 0, zy + lineH * lines.length);
+  grade.titleGrad.forEach((c, i) => wash.addColorStop(i / (grade.titleGrad.length - 1), c));
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.65)';
+  ctx.shadowBlur = Math.max(4, 10 * u);
+  ctx.shadowOffsetY = Math.max(3, 6 * u);
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = grade.ink;
+  ctx.lineWidth = Math.max(3, fontPx * 0.07);
+  ctx.fillStyle = wash;
+  lines.forEach((line, i) => {
+    const y = zy + lineH * (i + 1) - lineH * 0.12;
+    ctx.strokeText(line, anchorX, y);
+    ctx.fillText(line, anchorX, y);
+  });
+  ctx.restore();
+}
+
+/**
+ * The retro-chrome title: silver-and-gold lettering with printed
+ * horizontal stripes. The letters are painted to a scratch canvas and
+ * striped with source-atop, so the stripes only land on ink — never on
+ * the photo behind. The scratch canvas is stamped on, then the ink
+ * outline is stroked over the top on the main canvas.
+ */
+function paintChromeTitle(ctx, grade, lines, fontPx, lineH, zx, zy, zw, anchorX, align, u) {
+  const off = document.createElement('canvas');
+  const offW = Math.max(2, Math.ceil(zw));
+  const offH = Math.max(2, Math.ceil(lineH * lines.length));
+  off.width = offW;
+  off.height = offH;
+  const octx = off.getContext('2d');
+  const chrome = octx.createLinearGradient(0, 0, 0, offH);
+  chrome.addColorStop(0, '#ffffff');
+  chrome.addColorStop(0.30, '#cfcfdd');
+  chrome.addColorStop(0.48, '#ffd166');
+  chrome.addColorStop(0.62, '#ff9a3d');
+  chrome.addColorStop(0.78, '#fff7ae');
+  chrome.addColorStop(1, '#e8e8f0');
+  octx.save();
+  octx.font = `${fontPx}px Anton, 'Arial Black', sans-serif`;
+  octx.textAlign = align;
+  octx.textBaseline = 'alphabetic';
+  octx.fillStyle = chrome;
+  const offX = align === 'left' ? 0 : align === 'right' ? offW : offW / 2;
+  lines.forEach((line, i) => {
+    octx.fillText(line, offX, lineH * (i + 1) - lineH * 0.12);
+  });
+  octx.globalCompositeOperation = 'source-atop';
+  octx.fillStyle = 'rgba(10,2,20,0.28)';
+  const stripeH = Math.max(2, fontPx * 0.045);
+  for (let yy = fontPx * 0.22; yy < offH; yy += fontPx * 0.20) {
+    octx.fillRect(0, yy, offW, stripeH);
+  }
+  octx.restore();
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = Math.max(4, 12 * u);
+  ctx.shadowOffsetY = Math.max(3, 7 * u);
+  ctx.drawImage(off, zx, zy - lineH * 0.12);
+  ctx.restore();
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = grade.ink;
+  ctx.lineWidth = Math.max(3, fontPx * 0.07);
+  ctx.font = `${fontPx}px Anton, 'Arial Black', sans-serif`;
+  lines.forEach((line, i) => {
+    const y = zy + lineH * (i + 1) - lineH * 0.12;
+    ctx.strokeText(line, anchorX, y);
+  });
   ctx.restore();
 }
 
@@ -289,6 +562,10 @@ export function drawCover(canvas, state, photos) {
     paintPalm(ctx, W * 0.90, base, Math.min(W, H) * 0.11, 0.05, palmColour);
   }
 
+  // --- Role tags pinned to their panels, then callouts (v4). ---
+  castTagLayout(ctx, state, W, H).forEach((geom) => paintCastTag(ctx, geom));
+  calloutLayout(ctx, state, W, H).forEach((geom) => paintCallout(ctx, geom));
+
   // --- Title block: gradient Anton lettering, ink stroke, neon subtitle. ---
   const zone = layout.titleZone(W, H);
   const zx = zone.x * W;
@@ -321,22 +598,12 @@ export function drawCover(canvas, state, photos) {
     lines = fitTitleLines(ctx, titleText, fontPx, zw);
   }
   const lineH = fontPx * 1.02;
-  const titleGrad = ctx.createLinearGradient(0, zy, 0, zy + lineH * lines.length);
-  grade.titleGrad.forEach((c, i) => titleGrad.addColorStop(i / (grade.titleGrad.length - 1), c));
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.65)';
-  ctx.shadowBlur = Math.max(4, 10 * u);
-  ctx.shadowOffsetY = Math.max(3, 6 * u);
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = grade.ink;
-  ctx.lineWidth = Math.max(3, fontPx * 0.07);
-  ctx.fillStyle = titleGrad;
-  lines.forEach((line, i) => {
-    const y = zy + lineH * (i + 1) - lineH * 0.12;
-    ctx.strokeText(line, anchorX, y);
-    ctx.fillText(line, anchorX, y);
-  });
-  ctx.restore();
+  // Classic gradient or striped retro-chrome, picked by the editor.
+  if (state.titleStyle === 'chrome') {
+    paintChromeTitle(ctx, grade, lines, fontPx, lineH, zx, zy, zw, anchorX, align, u);
+  } else {
+    paintClassicTitle(ctx, grade, lines, fontPx, lineH, anchorX, zy, u);
+  }
 
   // Neon script subtitle under the title: white lettering with an
   // accent-coloured glow, so it reads on any photo or scrim.
@@ -377,6 +644,10 @@ export function drawCover(canvas, state, photos) {
     const starSize = Math.max(14, Math.min(W, H) * 0.024);
     paintHeatStars(ctx, W * 0.035, H * 0.03, starSize, state.heat, '#ffe600', 'rgba(255,255,255,0.25)');
   }
+
+  // --- Credits strip and seal stamp (v4), above the grain so they stay crisp. ---
+  paintBilling(ctx, state, W, H);
+  paintSeal(ctx, state, W, H);
 
   // --- Grain and vignette finish the poster look. ---
   if (state.grain) {

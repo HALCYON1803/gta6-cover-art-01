@@ -26,6 +26,16 @@ export async function runShot(shot, query, api) {
   api.redraw();
   await api.fontsReady();
   api.redraw();
+  if (shot === 'editor') {
+    // Scroll the Cast section into view (the preview is sticky, so it
+    // stays put): the editor shot should show the v4 cast editor, not
+    // just the photo slots above it.
+    const castBox = document.getElementById('castList');
+    if (castBox) {
+      castBox.scrollIntoView({ block: 'start' });
+      window.scrollBy(0, -64);
+    }
+  }
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   window.__shotReady = true;
 }

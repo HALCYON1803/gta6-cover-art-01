@@ -156,6 +156,40 @@ button.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 209, 
 .mini-tilted { transform: rotate(-3deg); background: linear-gradient(135deg, #ff2e88, #05001a); }
 .mini-fullbleed { background: linear-gradient(180deg, #ffd166, #ff2e88); }
 .mini-nine { background: repeating-linear-gradient(0deg, transparent 0 7px, rgba(255,255,255,0.5) 7px 9px), repeating-linear-gradient(90deg, transparent 0 10px, rgba(255,255,255,0.5) 10px 12px), linear-gradient(135deg, #8a8a9e, #050505); }
+.mini-triptych { background: repeating-linear-gradient(90deg, transparent 0 9px, rgba(255,255,255,0.5) 9px 11px), linear-gradient(135deg, #ffd166, #7b1e6b); }
+
+/* v4: cast-tag and callout lists, panel swap, upload-to-panel. */
+.cast-add { display: flex; flex-direction: column; gap: 6px; }
+.cast-add input[type="text"], .cast-add select { width: 100%; }
+.cast-add button { align-self: flex-start; }
+.cast-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr auto auto;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.cast-row.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.35); }
+.cast-row input[type="text"] { min-width: 0; font-size: 12px; padding: 6px 8px; }
+.cast-row select { font-size: 12px; padding: 6px 4px; }
+.cast-remove { font-size: 12px; padding: 4px 9px; }
+.swap-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.swap-row label { flex: 1; }
+.upload-panel {
+  display: block;
+  padding: 9px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+  cursor: pointer;
+}
 
 .grade-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .grade-btn { height: 44px; padding: 0; overflow: hidden; position: relative; border: 1px solid var(--line); }

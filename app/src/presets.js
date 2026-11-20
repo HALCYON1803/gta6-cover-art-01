@@ -1,5 +1,5 @@
 // Neon Coast Cover Studio — layouts, grades and one-click looks.
-// Everything here is original work for gta6-cover-art-01: six poster
+// Everything here is original work for gta6-cover-art-01: seven poster
 // layouts, six Vice-coast colour grades and six one-click looks. No
 // Rockstar art, logos or fonts are used anywhere in this app.
 //
@@ -7,6 +7,11 @@
 // (see each preset's `photos` list) so a multi-panel cover never repeats
 // the same face twice, and the Four Panel grid is full-bleed with the
 // title lettered OVER the art instead of in a dead band underneath.
+//
+// v4: each look also ships with its own cast of role tags, a callout,
+// the billing line and the seal, and two looks paint the title in
+// striped retro-chrome. Triptych — three tall portraits — joins the
+// layout set as the seventh.
 
 /** Photo library indices: 0 boulevard, 1 pier, 2 neon, 3 marina. */
 export const PHOTO_COUNT = 4;
@@ -17,6 +22,16 @@ export function dealPhotos(count, start = 0) {
   for (let i = 0; i < count; i++) dealt.push((start + i) % PHOTO_COUNT);
   return dealt;
 }
+
+/** The roles a cast tag can carry — pick one, or type your own. */
+export const CAST_ROLES = [
+  'THE GETAWAY DRIVER',
+  'THE MUSCLE',
+  'THE HACKER',
+  'THE FIXER',
+  'THE LOOKOUT',
+  'THE INSIDE WOMAN',
+];
 
 /** One poster layout: panel rectangles in normalised 0..1 space. */
 export const LAYOUTS = {
@@ -90,6 +105,18 @@ export const LAYOUTS = {
     },
     titleZone: () => ({ x: 0.345, y: 0.345, w: 0.31, align: 'center', maxH: 0.31 }),
     panelsCount: 8,
+  },
+  triptych: {
+    name: 'Triptych',
+    blurb: 'Three tall portraits side by side, title across the base.',
+    panels: () => [
+      { x: 0.02, y: 0.02, w: 0.31, h: 0.94, rot: 0 },
+      { x: 0.345, y: 0.02, w: 0.31, h: 0.94, rot: 0 },
+      { x: 0.67, y: 0.02, w: 0.31, h: 0.94, rot: 0 },
+    ],
+    titleZone: () => ({ x: 0.04, y: 0.70, w: 0.92, align: 'center', maxH: 0.26 }),
+    titleOverlay: true,
+    panelsCount: 3,
   },
 };
 
@@ -166,37 +193,78 @@ export const PRESETS = [
     id: 'sunset-heist', name: 'Sunset Heist', layout: 'hero', grade: 'sunset',
     title: 'NEON COAST', subtitle: 'Sunset Heist', tagline: 'PALMS  •  NEON  •  GOLDEN HOUR',
     badge: 'EST. 2026', heat: 5, grain: true, vignette: true, halftone: true, rays: true, palms: true,
+    titleStyle: 'classic',
     photos: [0, 2, 3],
+    cast: [
+      { panel: 1, x: 0.06, y: 0.76, name: 'LUCIA', role: 'THE GETAWAY DRIVER' },
+      { panel: 2, x: 0.06, y: 0.76, name: 'JASON', role: 'THE MUSCLE' },
+    ],
+    callouts: [{ text: 'VICE CITY • 2026', x: 0.5, y: 0.05 }],
+    billing: true, seal: true,
   },
   {
     id: 'neon-nights', name: 'Neon Nights', layout: 'tilted', grade: 'neon',
     title: 'NIGHT SHIFT', subtitle: 'Neon Nights', tagline: 'THE CITY NEVER SLEEPS',
     badge: 'AFTER DARK', heat: 4, grain: true, vignette: true, halftone: false, rays: false, palms: true,
+    titleStyle: 'chrome',
     photos: [2, 0, 3],
+    cast: [
+      { panel: 1, x: 0.06, y: 0.74, name: 'LUCIA', role: 'THE HACKER' },
+      { panel: 2, x: 0.06, y: 0.74, name: 'JASON', role: 'THE LOOKOUT' },
+    ],
+    callouts: [{ text: 'AFTER DARK', x: 0.5, y: 0.46 }],
+    billing: true, seal: true,
   },
   {
     id: 'palm-gold', name: 'Palm Gold', layout: 'grid4', grade: 'gold',
     title: 'BOULEVARD QUEEN', subtitle: 'Palm Gold', tagline: 'TOP DOWN  •  GOLDEN HOUR  •  COAST ROAD',
     badge: 'NO. 1', heat: 5, grain: true, vignette: true, halftone: true, rays: true, palms: true,
+    titleStyle: 'chrome',
     photos: [0, 1, 2, 3],
+    cast: [
+      { panel: 0, x: 0.06, y: 0.76, name: 'LUCIA', role: 'THE FIXER' },
+      { panel: 1, x: 0.06, y: 0.76, name: 'JASON', role: 'THE GETAWAY DRIVER' },
+    ],
+    callouts: [{ text: 'TOP DOWN • GOLDEN HOUR', x: 0.5, y: 0.04 }],
+    billing: true, seal: true,
   },
   {
     id: 'night-shift', name: 'Night Shift', layout: 'strip', grade: 'teal',
     title: 'PIER PRESSURE', subtitle: 'Night Shift', tagline: 'SALT AIR  •  NEON SIGNS  •  LOW TIDE',
     badge: 'LIVE', heat: 3, grain: true, vignette: true, halftone: false, rays: false, palms: false,
+    titleStyle: 'classic',
     photos: [3, 0, 1],
+    cast: [
+      { panel: 1, x: 0.06, y: 0.76, name: 'LUCIA', role: 'THE INSIDE WOMAN' },
+      { panel: 2, x: 0.06, y: 0.76, name: 'JASON', role: 'THE MUSCLE' },
+    ],
+    callouts: [{ text: 'LOW TIDE', x: 0.78, y: 0.62 }],
+    billing: true, seal: true,
   },
   {
     id: 'hot-pink', name: 'Hot Pink', layout: 'fullbleed', grade: 'pink',
     title: 'HOT PINK', subtitle: 'Vice Nights', tagline: 'DANCE  •  DRIVE  •  DISAPPEAR',
     badge: '18+', heat: 5, grain: false, vignette: true, halftone: true, rays: true, palms: true,
+    titleStyle: 'classic',
     photos: [2],
+    cast: [
+      { panel: 0, x: 0.06, y: 0.42, name: 'LUCIA', role: 'THE GETAWAY DRIVER' },
+    ],
+    callouts: [{ text: 'DANCE • DRIVE • DISAPPEAR', x: 0.5, y: 0.05 }],
+    billing: true, seal: true,
   },
   {
     id: 'noir', name: 'Midnight Noir', layout: 'nine', grade: 'noir',
     title: 'LAST CALL', subtitle: 'Midnight Noir', tagline: 'EVERY STORY ENDS AT THE PIER',
     badge: 'FINAL', heat: 4, grain: true, vignette: true, halftone: true, rays: false, palms: true,
+    titleStyle: 'classic',
     photos: [0, 2, 1, 3, 2, 0, 3, 1],
+    cast: [
+      { panel: 0, x: 0.06, y: 0.74, name: 'LUCIA', role: 'THE FIXER' },
+      { panel: 3, x: 0.06, y: 0.74, name: 'JASON', role: 'THE HACKER' },
+    ],
+    callouts: [{ text: 'EVERY STORY ENDS AT THE PIER', x: 0.5, y: 0.03 }],
+    billing: true, seal: true,
   },
 ];
 
@@ -215,6 +283,9 @@ const SLOT_CROPS = [
   { zoom: 1.25, ox: 0, oy: -0.06 },
 ];
 
+/** The credits line printed along the poster's bottom edge. */
+export const DEFAULT_BILLING = 'A LEONIDA PICTURE  •  STARRING LUCIA & JASON  •  MUSIC BY NEON COAST';
+
 /** A fresh default editor state. */
 export function defaultState() {
   return {
@@ -227,12 +298,26 @@ export function defaultState() {
     badge: 'EST. 2026',
     heat: 5,
     titleScale: 1,
+    titleStyle: 'classic',
     grain: true,
     vignette: true,
     halftone: true,
     rays: true,
     palms: true,
     frame: true,
+    // Role tags: each one names a person on the cover and sits on a
+    // panel. x/y are fractions of that panel, so a tag rides its photo
+    // at any export size.
+    cast: [
+      { panel: 1, x: 0.06, y: 0.76, name: 'LUCIA', role: 'THE GETAWAY DRIVER' },
+      { panel: 2, x: 0.06, y: 0.76, name: 'JASON', role: 'THE MUSCLE' },
+    ],
+    // Callouts: a label with a leader dot, placed in normalised cover
+    // space (0..1 across, 0..1 down).
+    callouts: [{ text: 'VICE CITY • 2026', x: 0.5, y: 0.05 }],
+    billing: true,
+    billingText: DEFAULT_BILLING,
+    seal: true,
     selectedPanel: 0,
     // One slot per possible panel (max 8). Each panel starts on a
     // different photo of the four, with its own crop, so the first
